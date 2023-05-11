@@ -1,6 +1,80 @@
 import serial
 import numpy as np
 from time import sleep
+import matplotlib.pyplot as plt
+
+
+class MatplotlibPlotter:
+    def __init__(self):
+        plt.figure(figsize=(6, 6))
+
+        self._xy = np.zeros(2)
+        self._pen_up = True
+        self._pen_buffer = []
+
+    def close(self):
+        plt.show(block=True)
+
+    def home(self):
+        self.pen_up = True
+        self._xy[:] = 0.
+
+    @property
+    def pen_up(self):
+        return self._pen_up
+
+    @pen_up.setter
+    def pen_up(self, val):
+        self._pen_up = val
+        if val:
+            if len(self._pen_buffer) > 0:
+                xy = np.array(self._pen_buffer)
+                plt.plot(xy[:,0], xy[:,1])
+            self._pen_buffer = []
+        else:
+            self._pen_buffer = [self._xy]
+
+    @property
+    def pen_down(self):
+        return not self._pen_up
+
+    @pen_up.setter
+    def pen_down(self, val):
+        self.pen_up = not val
+
+    # Plotter head position
+
+    @property
+    def xy(self):
+        return self._xy
+
+    @xy.setter
+    def xy(self, val):
+        self._xy[:] = val[:]
+        if self.pen_down:
+            self._pen_buffer.append(self._xy.copy())
+
+    @property
+    def x(self):
+        return self._xy[0]
+
+    @x.setter
+    def x(self, val):
+        self.xy = np.array([val, self.y])
+
+    @property
+    def y(self):
+        return self._xy[1]
+
+    @x.setter
+    def y(self, val):
+        self.xy = np.array([self.x, val])
+
+    # matplotlib style plotting
+    def plot(self, x, y):
+        plt.plot(x, y)
+        self._pen_down = False
+
 
 class Plotter:
     def __init__(self,
@@ -14,6 +88,9 @@ class Plotter:
 
     def __del__(self):
         self.connection.close()
+
+    def close(self):
+        return self.__del__()
 
     def send(self, msg):
         self.connection.write((msg + '\n').encode('ascii'))
@@ -29,7 +106,7 @@ class Plotter:
             if ack == 'ok':
                 break
             if ack.startswith('error'):
-                raise RuntimeError(f'Error received from device: {ack}')
+                raise RuntimeError(f'{ack}.  Tried to send: {cmd}.')
 
     # Homing
 
